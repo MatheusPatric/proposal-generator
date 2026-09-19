@@ -8,8 +8,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { useDropzone } from 'react-dropzone';
+import { useToast } from '@/hooks/use-toast';
+
+// Imagens são armazenadas como data-URL no documento da proposta;
+// o limite evita payloads gigantes no MongoDB e páginas lentas para o cliente.
+const MAX_IMAGE_SIZE_MB = 2;
+const MAX_IMAGE_SIZE = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 
 export default function CreateProposalModal({ isOpen, onClose, proposal }) {
+  const { toast } = useToast();
   // Template padrão para nova proposta
   const defaultTemplate = {
     clientName: '',
@@ -68,6 +75,7 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
   };
 
   const [formData, setFormData] = useState(defaultTemplate);
+  const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiFieldType, setAiFieldType] = useState(null);
@@ -79,17 +87,36 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
       // Reset para o template padrão quando criar nova proposta
       setFormData(defaultTemplate);
     }
+    setErrors({});
   }, [proposal, isOpen]);
+
+  // Fecha com Esc e trava o scroll da página enquanto o modal está aberto
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !saving) onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, saving, onClose]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
   };
 
   const handlePlanChange = (index, field, value) => {
     const newPlans = [...formData.plans];
     newPlans[index] = { ...newPlans[index], [field]: value };
     setFormData((prev) => ({ ...prev, plans: newPlans }));
+    if (field === 'name') {
+      setErrors((prev) => (prev[`plan-${index}`] ? { ...prev, [`plan-${index}`]: null } : prev));
+    }
   };
 
   const handlePlanFeatureChange = (planIndex, featureIndex, value) => {
@@ -138,9 +165,21 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
     setFormData((prev) => ({ ...prev, plans: newPlans }));
   };
 
+  const validateImage = (file) => {
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast({
+        variant: 'destructive',
+        title: 'Imagem muito grande',
+        description: `"${file.name}" excede ${MAX_IMAGE_SIZE_MB}MB. Comprima a imagem e tente novamente.`,
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleImageUpload = (acceptedFiles, field) => {
     const file = acceptedFiles[0];
-    if (file) {
+    if (file && validateImage(file)) {
       const reader = new FileReader();
       reader.onload = (e) => {
         setFormData((prev) => ({ ...prev, [field]: e.target.result }));
@@ -177,7 +216,7 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
     accept: { 'image/*': [] },
     multiple: true,
     onDrop: (acceptedFiles) => {
-      acceptedFiles.forEach((file) => {
+      acceptedFiles.filter(validateImage).forEach((file) => {
         const reader = new FileReader();
         reader.onload = (e) => {
           setFormData((prev) => ({
@@ -222,15 +261,39 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
       }
     } catch (error) {
       console.error('Error generating AI text:', error);
-      alert('Erro ao gerar texto com IA. Tente novamente.');
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao gerar texto com IA',
+        description: 'Não foi possível gerar o texto. Tente novamente.',
+      });
     } finally {
       setAiGenerating(false);
       setAiFieldType(null);
     }
   };
 
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.clientName?.trim()) newErrors.clientName = 'Informe o nome do cliente';
+    if (!formData.companyName?.trim()) newErrors.companyName = 'Informe o nome da empresa';
+    if (!formData.title?.trim()) newErrors.title = 'Informe o título da proposta';
+    formData.plans.forEach((plan, i) => {
+      if (!plan.name?.trim()) newErrors[`plan-${i}`] = 'Informe o nome do plano';
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) {
+      toast({
+        variant: 'destructive',
+        title: 'Campos obrigatórios',
+        description: 'Revise os campos destacados antes de salvar.',
+      });
+      return;
+    }
     setSaving(true);
 
     try {
@@ -246,13 +309,26 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
       });
 
       if (response.ok) {
+        toast({
+          title: proposal ? 'Proposta atualizada' : 'Proposta criada',
+          description: `A proposta para ${formData.companyName} foi salva com sucesso.`,
+        });
         onClose();
       } else {
-        alert('Erro ao salvar proposta');
+        const data = await response.json().catch(() => ({}));
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao salvar proposta',
+          description: data.error || 'O servidor não conseguiu salvar. Tente novamente.',
+        });
       }
     } catch (error) {
       console.error('Error saving proposal:', error);
-      alert('Erro ao salvar proposta');
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar proposta',
+        description: 'Falha de conexão. Verifique sua internet e tente novamente.',
+      });
     } finally {
       setSaving(false);
     }
@@ -294,9 +370,12 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
                     name="clientName"
                     value={formData.clientName}
                     onChange={handleChange}
-                    required
-                    className="bg-zinc-800 border-zinc-700 text-white"
+                    aria-invalid={!!errors.clientName}
+                    className={`bg-zinc-800 text-white ${errors.clientName ? 'border-red-500' : 'border-zinc-700'}`}
                   />
+                  {errors.clientName && (
+                    <p className="text-red-400 text-xs mt-1">{errors.clientName}</p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="companyName" className="text-zinc-300">
@@ -307,9 +386,12 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
                     name="companyName"
                     value={formData.companyName}
                     onChange={handleChange}
-                    required
-                    className="bg-zinc-800 border-zinc-700 text-white"
+                    aria-invalid={!!errors.companyName}
+                    className={`bg-zinc-800 text-white ${errors.companyName ? 'border-red-500' : 'border-zinc-700'}`}
                   />
+                  {errors.companyName && (
+                    <p className="text-red-400 text-xs mt-1">{errors.companyName}</p>
+                  )}
                 </div>
               </div>
 
@@ -350,10 +432,13 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
                   name="title"
                   value={formData.title}
                   onChange={handleChange}
-                  required
-                  className="bg-zinc-800 border-zinc-700 text-white"
+                  aria-invalid={!!errors.title}
+                  className={`bg-zinc-800 text-white ${errors.title ? 'border-red-500' : 'border-zinc-700'}`}
                   placeholder="Ex: Proposta de Gestão de Conteúdo para Mídias Digitais"
                 />
+                {errors.title && (
+                  <p className="text-red-400 text-xs mt-1">{errors.title}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="description" className="text-zinc-300 flex items-center gap-2">
@@ -455,8 +540,12 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
                         value={plan.name}
                         onChange={(e) => handlePlanChange(planIndex, 'name', e.target.value)}
                         placeholder="Nome do Plano"
-                        className="bg-zinc-900 border-zinc-700 text-white"
+                        aria-invalid={!!errors[`plan-${planIndex}`]}
+                        className={`bg-zinc-900 text-white ${errors[`plan-${planIndex}`] ? 'border-red-500' : 'border-zinc-700'}`}
                       />
+                      {errors[`plan-${planIndex}`] && (
+                        <p className="text-red-400 text-xs mt-1">{errors[`plan-${planIndex}`]}</p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-lime-400 text-xs mb-1 font-semibold">💰 Preço (Editável)</Label>
