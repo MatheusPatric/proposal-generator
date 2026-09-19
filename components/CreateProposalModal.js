@@ -9,11 +9,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { useDropzone } from 'react-dropzone';
 import { useToast } from '@/hooks/use-toast';
+import { compressImage, jsonSizeMB } from '@/lib/image';
 
-// Imagens são armazenadas como data-URL no documento da proposta;
-// o limite evita payloads gigantes no MongoDB e páginas lentas para o cliente.
-const MAX_IMAGE_SIZE_MB = 2;
+// Arquivos maiores que isso são recusados antes mesmo da compressão.
+const MAX_IMAGE_SIZE_MB = 15;
 const MAX_IMAGE_SIZE = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+// A Vercel limita o corpo da requisição a 4,5MB; deixamos margem.
+const MAX_PAYLOAD_MB = 4;
+// Logos não precisam de alta resolução; criativos e capas sim.
+const IMAGE_DIMENSIONS = { clientLogo: 512, default: 1600 };
 
 export default function CreateProposalModal({ isOpen, onClose, proposal }) {
   const { toast } = useToast();
@@ -177,14 +181,13 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
     return true;
   };
 
-  const handleImageUpload = (acceptedFiles, field) => {
+  const handleImageUpload = async (acceptedFiles, field) => {
     const file = acceptedFiles[0];
     if (file && validateImage(file)) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setFormData((prev) => ({ ...prev, [field]: e.target.result }));
-      };
-      reader.readAsDataURL(file);
+      const dataUrl = await compressImage(file, {
+        maxDimension: IMAGE_DIMENSIONS[field] || IMAGE_DIMENSIONS.default,
+      });
+      setFormData((prev) => ({ ...prev, [field]: dataUrl }));
     }
   };
 
@@ -216,15 +219,14 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
     accept: { 'image/*': [] },
     multiple: true,
     onDrop: (acceptedFiles) => {
-      acceptedFiles.filter(validateImage).forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setFormData((prev) => ({
-            ...prev,
-            carouselCreatives: [...(prev.carouselCreatives || []), e.target.result],
-          }));
-        };
-        reader.readAsDataURL(file);
+      acceptedFiles.filter(validateImage).forEach(async (file) => {
+        const dataUrl = await compressImage(file, {
+          maxDimension: IMAGE_DIMENSIONS.default,
+        });
+        setFormData((prev) => ({
+          ...prev,
+          carouselCreatives: [...(prev.carouselCreatives || []), dataUrl],
+        }));
       });
     },
   });
@@ -291,6 +293,15 @@ Trabalhamos com metodologia comprovada, análise constante de métricas e ajuste
         variant: 'destructive',
         title: 'Campos obrigatórios',
         description: 'Revise os campos destacados antes de salvar.',
+      });
+      return;
+    }
+    const payloadMB = jsonSizeMB(formData);
+    if (payloadMB > MAX_PAYLOAD_MB) {
+      toast({
+        variant: 'destructive',
+        title: 'Proposta muito pesada',
+        description: `As imagens somam ${payloadMB.toFixed(1)}MB (limite: ${MAX_PAYLOAD_MB}MB). Remova algumas imagens do carousel e tente de novo.`,
       });
       return;
     }
