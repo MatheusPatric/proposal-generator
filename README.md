@@ -1,135 +1,86 @@
-# 🚀 Gerador de Propostas Comerciais
+# Proposal Generator
 
-Aplicação web profissional para criação e gerenciamento de propostas comerciais para clientes de marketing digital e gestão de redes sociais.
+Open-source commercial proposal generator for freelancers and small digital-marketing agencies. Create branded, landing-page-style proposals with dynamic pricing plans and share each one with your client through a unique URL — replacing static PDFs that convert poorly.
 
-## ✨ Funcionalidades
+Built for the Brazilian freelancer market (UI in Portuguese), self-hostable by anyone.
 
-### Dashboard Principal
-- ✅ Visualização de todas as propostas criadas
-- ✅ Criação de novas propostas com formulário completo
-- ✅ Edição de propostas existentes
-- ✅ Exclusão de propostas
-- ✅ Interface moderna com tema preto e verde limão
+**Live demo:** https://app-chi-sooty-79.vercel.app
 
-### Gerador de Propostas
-- ✅ Upload de logo do cliente
-- ✅ Upload de imagem de capa
-- ✅ Título e descrição personalizáveis
-- ✅ Seção de visão geral da estratégia
-- ✅ Planos de serviço dinâmicos (adicionar/remover)
-- ✅ Funcionalidades customizáveis por plano
-- ✅ Upload de mockup/preview visual
-- ✅ Seção de resultados esperados
-- ✅ Notas personalizadas
-- ✅ Informações de contato no rodapé
+## Why
 
-### Página de Proposta
-- ✅ URL única e compartilhável para cada proposta
-- ✅ Design profissional tipo landing page
-- ✅ Hero section com logo e título
-- ✅ Cards de preços destacados
-- ✅ Call-to-action para WhatsApp
-- ✅ Exportação em PDF
-- ✅ Copiar link da proposta
-- ✅ Totalmente responsivo (mobile-first)
+Existing proposal tools are paid SaaS products, mostly in English. Freelancers starting out end up sending proposals as PDFs or slide decks: hard to update, impossible to track, and unimpressive on a phone. This project gives them a free alternative they can deploy themselves:
 
-## 🛠️ Tecnologias Utilizadas
+- Each proposal is a polished landing page with its own shareable link
+- Prices, plans and features are edited in a form, not in a design tool
+- The client opens a professional page instead of downloading an attachment
 
-- **Next.js 14** - Framework React
-- **MongoDB** - Banco de dados
-- **TailwindCSS** - Estilização
-- **shadcn/ui** - Componentes UI
-- **jsPDF + html2canvas** - Exportação PDF
-- **react-dropzone** - Upload de imagens
-- **Lucide React** - Ícones
+## Features
 
-## 🎨 Design
+**Dashboard**
+- Create, edit and delete proposals
+- Copy the client-facing link with one click
+- Cards show creation date and number of pricing plans
+- Loading skeletons, error state with retry, toast feedback on every action
 
-- Tema moderno preto e verde limão
-- Gradientes sutis e efeitos de hover
-- Animações suaves
-- Layout responsivo para todos os dispositivos
-- Tipografia grande e impactante
+**Proposal builder**
+- Pre-filled template with sensible defaults for social-media management services
+- Dynamic pricing plans: add/remove plans and per-plan feature lists
+- Uploads for client logo, cover image, main creative and a carousel of past work (2MB limit per image)
+- Inline validation with clear field-level error messages
+- Optional AI-assisted text for expected results and custom notes
 
-## 🚀 Como Usar
+**Client-facing proposal page**
+- Landing-page layout: hero with logo, strategy overview, pricing cards, creatives carousel, contact footer
+- Unique URL per proposal (`/proposal/<id>`), plus a thank-you page
+- WhatsApp / Instagram / e-mail contact links
 
-1. **Acessar o Dashboard**
-   - Abra a aplicação no navegador
-   - Veja todas as suas propostas criadas
+## Stack
 
-2. **Criar Nova Proposta**
-   - Clique em "Nova Proposta"
-   - Preencha as informações do cliente
-   - Adicione logo e imagens
-   - Configure os planos de serviço
-   - Adicione funcionalidades a cada plano
-   - Salve a proposta
+- [Next.js 14](https://nextjs.org/) (App Router) + React 18
+- [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) (Radix primitives)
+- [MongoDB](https://www.mongodb.com/) for storage
+- API implemented as a single Next.js route handler (`app/api/[[...path]]/route.js`)
 
-3. **Compartilhar Proposta**
-   - Clique em "Ver" na proposta desejada
-   - Copie o link único gerado
-   - Compartilhe com o cliente
+## Running locally
 
-4. **Exportar PDF**
-   - Na página da proposta, clique em "Exportar PDF"
-   - O PDF será gerado automaticamente
+Requirements: Node.js 18+ and a MongoDB instance (local or [MongoDB Atlas](https://www.mongodb.com/atlas) free tier).
 
-## 📱 URLs
+```bash
+git clone https://github.com/MatheusPatric/proposal-generator.git
+cd proposal-generator
+cp .env.example .env   # edit MONGO_URL if needed
+npm install
+npm run dev
+```
 
-- **Dashboard**: `/`
-- **Proposta**: `/proposal/{id}`
+Open http://localhost:3000.
 
-## 🔗 API Endpoints
+### Environment variables
 
-- `GET /api/proposals` - Listar todas as propostas
-- `POST /api/proposals` - Criar nova proposta
-- `GET /api/proposals/{id}` - Buscar proposta específica
-- `PUT /api/proposals/{id}` - Atualizar proposta
-- `DELETE /api/proposals/{id}` - Excluir proposta
+| Variable | Required | Description |
+| --- | --- | --- |
+| `MONGO_URL` | yes | MongoDB connection string |
+| `DB_NAME` | no | Database name (default: `proposal_generator`) |
+| `NEXT_PUBLIC_BASE_URL` | no | Public URL used in shareable links |
+| `CORS_ORIGINS` | no | Allowed CORS origins (set your domain in production) |
 
-## 💾 Estrutura de Dados
+## Deploying (Vercel + MongoDB Atlas)
 
-Cada proposta contém:
-- Informações do cliente (nome, empresa, logo)
-- Detalhes da proposta (título, descrição, imagens)
-- Visão geral da estratégia
-- Planos de serviço com preços e funcionalidades
-- Preview visual (mockup)
-- Resultados esperados
-- Notas personalizadas
-- Informações de contato e rodapé
+1. Create a free cluster on [MongoDB Atlas](https://www.mongodb.com/atlas), create a database user and allow access from anywhere (or Vercel's IPs).
+2. Import this repository on [Vercel](https://vercel.com/new).
+3. Set the environment variables above in the Vercel project settings (`MONGO_URL` from Atlas, `NEXT_PUBLIC_BASE_URL` = your deployment URL).
+4. Deploy. Every push to `main` redeploys automatically.
 
-## 🎯 Casos de Uso
+## Roadmap
 
-Ideal para:
-- Agências de marketing digital
-- Freelancers de social media
-- Consultores de marketing
-- Gestores de conteúdo
-- Profissionais de growth
+- [ ] Authentication so multiple freelancers can host one instance
+- [ ] Proposal open/view tracking
+- [ ] Accept/decline button on the proposal page
+- [ ] Image storage on S3-compatible services instead of data URLs
+- [ ] English UI translation
 
-## 📸 Recursos Visuais
+Contributions and suggestions are welcome — feel free to open an issue.
 
-- Design premium e minimalista
-- Cards com efeitos hover
-- Plano "popular" destacado
-- Botões com gradientes
-- Imagens otimizadas
-- Scrollbar personalizado
+## License
 
-## ✅ Status do Projeto
-
-**Concluído e Funcionando:**
-- ✅ Backend API completo (MongoDB)
-- ✅ CRUD de propostas
-- ✅ Upload de imagens (base64)
-- ✅ Dashboard interativo
-- ✅ Formulário de criação/edição
-- ✅ Página de proposta compartilhável
-- ✅ Exportação PDF
-- ✅ Design responsivo
-- ✅ Integração WhatsApp
-
----
-
-Desenvolvido com ❤️ para profissionais de marketing digital
+[MIT](LICENSE)
