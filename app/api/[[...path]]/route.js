@@ -13,6 +13,12 @@ async function connectToDatabase() {
     return { client: cachedClient, db: cachedDb };
   }
 
+  if (!uri) {
+    const error = new Error('MONGO_URL não configurada. Defina a variável de ambiente (veja .env.example).');
+    error.statusCode = 503;
+    throw error;
+  }
+
   const client = await MongoClient.connect(uri, {
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 5000,
@@ -23,6 +29,33 @@ async function connectToDatabase() {
   cachedDb = db;
 
   return { client, db };
+}
+
+// Valida o payload de criação/edição de proposta; retorna a lista de problemas.
+function validateProposal(body) {
+  const issues = [];
+  if (!body || typeof body !== 'object') {
+    return ['Corpo da requisição inválido'];
+  }
+  if (!body.clientName?.trim()) issues.push('clientName é obrigatório');
+  if (!body.companyName?.trim()) issues.push('companyName é obrigatório');
+  if (!body.title?.trim()) issues.push('title é obrigatório');
+  if (body.plans !== undefined) {
+    if (!Array.isArray(body.plans)) {
+      issues.push('plans deve ser uma lista');
+    } else {
+      body.plans.forEach((plan, i) => {
+        if (!plan || typeof plan !== 'object' || !plan.name?.trim()) {
+          issues.push(`plans[${i}].name é obrigatório`);
+        }
+      });
+    }
+  }
+  return issues;
+}
+
+function errorStatus(error) {
+  return error.statusCode || 500;
 }
 
 function corsHeaders() {
@@ -60,7 +93,7 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Route not found' }, { status: 404, headers: corsHeaders() });
   } catch (error) {
     console.error('GET Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders() });
+    return NextResponse.json({ error: error.message }, { status: errorStatus(error), headers: corsHeaders() });
   }
 }
 
@@ -72,6 +105,13 @@ export async function POST(request) {
     const body = await request.json();
 
     if (path === 'proposals') {
+      const issues = validateProposal(body);
+      if (issues.length > 0) {
+        return NextResponse.json(
+          { error: `Dados inválidos: ${issues.join('; ')}` },
+          { status: 400, headers: corsHeaders() }
+        );
+      }
       const proposal = {
         id: uuidv4(),
         ...body,
@@ -100,7 +140,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Route not found' }, { status: 404, headers: corsHeaders() });
   } catch (error) {
     console.error('POST Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders() });
+    return NextResponse.json({ error: error.message }, { status: errorStatus(error), headers: corsHeaders() });
   }
 }
 
@@ -113,6 +153,13 @@ export async function PUT(request) {
 
     if (path.startsWith('proposals/')) {
       const id = path.split('/')[1];
+      const issues = validateProposal(body);
+      if (issues.length > 0) {
+        return NextResponse.json(
+          { error: `Dados inválidos: ${issues.join('; ')}` },
+          { status: 400, headers: corsHeaders() }
+        );
+      }
       const updateData = { ...body, updatedAt: new Date().toISOString() };
       delete updateData.id;
       delete updateData.createdAt;
@@ -129,7 +176,7 @@ export async function PUT(request) {
     return NextResponse.json({ error: 'Route not found' }, { status: 404, headers: corsHeaders() });
   } catch (error) {
     console.error('PUT Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders() });
+    return NextResponse.json({ error: error.message }, { status: errorStatus(error), headers: corsHeaders() });
   }
 }
 
@@ -151,6 +198,6 @@ export async function DELETE(request) {
     return NextResponse.json({ error: 'Route not found' }, { status: 404, headers: corsHeaders() });
   } catch (error) {
     console.error('DELETE Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders() });
+    return NextResponse.json({ error: error.message }, { status: errorStatus(error), headers: corsHeaders() });
   }
 }
